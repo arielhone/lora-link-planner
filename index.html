@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LoRa Link Planner — Israel</title>
+    <meta name="description" content="Will my LoRa message get through? Click two points on a map of Israel and see the terrain, the Fresnel zone and the link budget." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M2 26 L10 14 L15 20 L21 8 L30 26Z' fill='%2316a34a'/%3E%3Cpath d='M4 10 Q16 -2 28 10' stroke='%232563eb' stroke-width='3' fill='none'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>📡 LoRa Link Planner <span class="sub">Israel</span></h1>
+      <nav>
+        <a href="./field.html" id="field-link">Field mode</a>
+        <a href="https://github.com/arielhone/lora-link-planner/blob/main/docs/LEARN.md" target="_blank" rel="noopener">Learn</a>
+        <a href="https://github.com/arielhone/lora-link-planner" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="planner">
+      <section class="map-wrap">
+        <div id="map" aria-label="Map of Israel. Click to place point A, then point B."></div>
+        <div class="map-hint" id="map-hint">Click the map to place <b>A</b></div>
+        <div class="map-tools">
+          <select id="examples" aria-label="Load an example">
+            <option value="">Examples…</option>
+          </select>
+          <button id="swap" type="button" title="Swap A and B">⇄</button>
+          <button id="reset" type="button" title="Remove both points">Reset</button>
+        </div>
+      </section>
+
+      <section class="profile-wrap">
+        <div class="profile-head">
+          <h2>Terrain profile</h2>
+          <div class="legend">
+            <span><i class="sw terrain"></i>ground (+ earth curve)</span>
+            <span><i class="sw los"></i>line of sight</span>
+            <span><i class="sw fresnel"></i>1st Fresnel zone</span>
+            <span><i class="sw block"></i>blocks LOS</span>
+            <span><i class="sw intrude"></i>inside 60% Fresnel</span>
+          </div>
+        </div>
+        <div id="profile" class="profile"><p class="empty">Place two points to see the terrain between them.</p></div>
+      </section>
+
+      <aside class="side">
+        <div id="result" class="card result empty-card">
+          <p>Click two points on the map: <b>A</b> is the transmitter, <b>B</b> the receiver.</p>
+        </div>
+
+        <details class="card" open>
+          <summary>Antennas</summary>
+          <div class="grid2">
+            <label>A height above ground (m)<input id="hA" type="number" min="0" max="500" step="0.5" value="2" /></label>
+            <label>B height above ground (m)<input id="hB" type="number" min="0" max="500" step="0.5" value="2" /></label>
+          </div>
+          <p class="coords" id="coords"></p>
+        </details>
+
+        <details class="card" open>
+          <summary>Radio settings</summary>
+          <div class="grid2" id="settings">
+            <label>Frequency (MHz)<input data-key="freqMHz" type="number" min="137" max="2500" step="0.1" /></label>
+            <label>TX power (dBm)<input data-key="txPowerDbm" type="number" min="-9" max="30" step="1" /></label>
+            <label>TX antenna gain (dBi)<input data-key="txGainDbi" type="number" min="-10" max="30" step="0.5" /></label>
+            <label>RX antenna gain (dBi)<input data-key="rxGainDbi" type="number" min="-10" max="30" step="0.5" /></label>
+            <label>TX cable loss (dB)<input data-key="txCableLossDb" type="number" min="0" max="20" step="0.1" /></label>
+            <label>RX cable loss (dB)<input data-key="rxCableLossDb" type="number" min="0" max="20" step="0.1" /></label>
+            <label>Spreading factor
+              <select data-key="sf"><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select>
+            </label>
+            <label>Bandwidth (kHz)
+              <select data-key="bandwidthKHz"><option>125</option><option>250</option><option>500</option></select>
+            </label>
+            <label>Radio chip
+              <select data-key="chip"><option value="sx1262">SX1262 / SX126x</option><option value="sx1276">SX1276 / RFM95</option></select>
+            </label>
+            <label>Payload (bytes)<input data-key="payloadBytes" type="number" min="1" max="255" step="1" /></label>
+            <label>Coding rate
+              <select data-key="codingRate"><option value="1">4/5</option><option value="2">4/6</option><option value="3">4/7</option><option value="4">4/8</option></select>
+            </label>
+            <label>Obstruction model
+              <select data-key="diffraction"><option value="deygout">Deygout (multi-edge)</option><option value="single">Single knife edge</option><option value="none">None (free space)</option></select>
+            </label>
+          </div>
+          <p class="hint">Israel: 917–920 MHz, max 14 dBm EIRP (AS923-4). <a href="https://github.com/arielhone/lora-link-planner/blob/main/DECISIONS.md#1-frequency-band-and-power-for-israel" target="_blank" rel="noopener">Source</a></p>
+          <div id="compliance"></div>
+        </details>
+
+        <div id="whatif" class="card"></div>
+      </aside>
+    </main>
+
+    <footer class="foot">
+      Map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors ·
+      Elevation: Copernicus DEM GLO-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA ·
+      Planning estimate only — not a guarantee.
+    </footer>
+    <script type="module" src="/src/app/main.js"></script>
+  </body>
+</html>

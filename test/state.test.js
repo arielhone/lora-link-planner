@@ -1,0 +1,57 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { encodeState, decodeState, defaultState } from '../src/app/state.js';
+import { parseCsv, csvToRecords, recordsToCsv, CSV_COLUMNS } from '../src/field/csv.js';
+
+test('URL hash round trip', () => {
+  const s = defaultState();
+  s.a = { lat: 32.68661234, lon: 35.35, h: 2 };
+  s.b = { lat: 32.7, lon: 35.43, h: 12.5 };
+  s.settings.sf = 12;
+  s.settings.bandwidthKHz = 250;
+  s.settings.chip = 'sx1276';
+  s.settings.txGainDbi = 3;
+  const hash = encodeState(s);
+  assert.match(hash, /^a=32\.68661,35\.35,2&b=32\.7,35\.43,12\.5/);
+  assert.ok(!/(^|&)f=/.test(hash), 'defaults are omitted');
+  const d = decodeState('#' + hash);
+  assert.deepEqual(d.b, s.b);
+  assert.equal(d.a.lat, 32.68661);
+  assert.equal(d.settings.sf, 12);
+  assert.equal(d.settings.bandwidthKHz, 250);
+  assert.equal(d.settings.chip, 'sx1276');
+  assert.equal(d.settings.txGainDbi, 3);
+  assert.equal(d.settings.freqMHz, 917.3);
+});
+
+test('invalid hash values fall back to defaults', () => {
+  const d = decodeState('a=foo&b=91,0,1&sf=13&bw=300&chip=evil&f=abc');
+  assert.equal(d.a, null);
+  assert.equal(d.b, null);
+  assert.equal(d.settings.sf, 9);
+  assert.equal(d.settings.bandwidthKHz, 125);
+  assert.equal(d.settings.chip, 'sx1262');
+  assert.equal(d.settings.freqMHz, 917.3);
+  assert.equal(decodeState('a=32,35').a.h, 2);
+});
+
+test('CSV parser handles quotes, commas, newlines and CRLF', () => {
+  const rows = parseCsv('a,b,c\r\n1,"x, y","he said ""hi"""\n2,"multi\nline",\n');
+  assert.deepEqual(rows, [['a', 'b', 'c'], ['1', 'x, y', 'he said "hi"'], ['2', 'multi\nline', '']]);
+});
+
+test('CSV records round trip, comments ignored, empty numbers are null', () => {
+  const recs = [{ timestamp: '2026-11-02T10:00:00Z', a_lat: 32.1, a_lon: 34.8, rssi_dbm: -110, snr_db: -3.5, sf: 9, notes: 'roof, windy' }];
+  const csv = recordsToCsv(recs);
+  const back = csvToRecords('# comment from firmware\n' + csv);
+  assert.equal(back.length, 1);
+  assert.equal(back[0].rssi_dbm, -110);
+  assert.equal(back[0].notes, 'roof, windy');
+  assert.equal(back[0].b_lat, null);
+  assert.ok(!('predicted_rssi_dbm' in back[0]));
+});
+
+test('CSV import requires rssi column', () => {
+  assert.throws(() => csvToRecords('foo,bar\n1,2\n'), /rssi_dbm/);
+  assert.equal(CSV_COLUMNS[0], 'timestamp');
+});
