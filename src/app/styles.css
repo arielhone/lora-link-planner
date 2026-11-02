@@ -184,3 +184,44 @@ table.sf tr.v-fails td:nth-child(3) { color: var(--bad); }
   .topbar .sub { display: none; }
   .grid2 { grid-template-columns: 1fr; }
 }
+
+/* ---------- field mode */
+.field-page { height: auto; min-height: 100%; }
+.field { display: grid; grid-template-columns: minmax(320px, 440px) minmax(0, 1fr); gap: 14px; padding: 14px; align-items: start; }
+.field h2 { font-size: 16px; margin: 0 0 6px; }
+#fmap { height: 240px; border-radius: 8px; margin: 8px 0 10px; border: 1px solid var(--border); }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+.grid3.measured { padding: 8px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.pair { display: flex; gap: 4px; }
+.pair input { min-width: 0; width: 50%; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.row.between { justify-content: space-between; margin-top: 0; }
+.filebtn { display: inline-flex; flex-direction: row; align-items: center; color: var(--text); font-size: 14px; border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px; min-height: 34px; cursor: pointer; }
+.stats { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+.stats div { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
+.stats b { display: block; font-size: 18px; }
+.stats small { color: var(--muted); }
+.errchart { min-height: 220px; position: relative; }
+.errchart svg { display: block; width: 100%; }
+.errchart .axis text { font-size: 11px; fill: var(--muted); }
+.errchart .grid { stroke: var(--grid); }
+.errchart .zero { stroke: var(--text); stroke-width: 1.2; }
+.errchart .mean { stroke: var(--accent); stroke-dasharray: 5 4; }
+.errchart .band { fill: color-mix(in srgb, var(--good) 12%, transparent); }
+.errchart .dot { stroke: var(--panel); stroke-width: 1.5; }
+.errchart .empty { color: var(--muted); text-align: center; padding-top: 80px; }
+.tablewrap { overflow-x: auto; margin-top: 10px; }
+table.tests { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+table.tests th { text-align: right; font-weight: 500; color: var(--muted); padding: 4px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+table.tests td { text-align: right; padding: 4px 6px; border-bottom: 1px dashed var(--border); white-space: nowrap; }
+table.tests td.notes, table.tests th.notes { text-align: left; white-space: normal; min-width: 120px; }
+table.tests td.pos { color: var(--good); }
+table.tests td.neg { color: var(--bad); }
+@media (max-width: 860px) {
+  .field { grid-template-columns: 1fr; padding: 10px; }
+}
+@media (max-width: 420px) {
+  .grid3 { grid-template-columns: 1fr 1fr; }
+}
+.grid2 > *, .grid3 > * { min-width: 0; }
+label > input, label > select { width: 100%; }

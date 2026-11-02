@@ -4,6 +4,79 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Field mode — LoRa Link Planner</title>
+    <meta name="description" content="Log real LoRa range tests and compare them with the planner's predictions." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M2 26 L10 14 L15 20 L21 8 L30 26Z' fill='%2316a34a'/%3E%3Cpath d='M4 10 Q16 -2 28 10' stroke='%232563eb' stroke-width='3' fill='none'/%3E%3C/svg%3E" />
   </head>
-  <body><p>Field mode coming soon.</p></body>
+  <body class="field-page">
+    <header class="topbar">
+      <h1>📡 LoRa Link Planner <span class="sub">Field mode</span></h1>
+      <nav>
+        <a href="./index.html" id="planner-link">Planner</a>
+        <a href="https://github.com/arielhone/lora-link-planner/blob/main/docs/LEARN.md" target="_blank" rel="noopener">Learn</a>
+        <a href="https://github.com/arielhone/lora-link-planner/tree/main/firmware" target="_blank" rel="noopener">Firmware</a>
+      </nav>
+    </header>
+
+    <main class="field">
+      <section class="card log-form">
+        <h2>Log a field test</h2>
+        <p class="hint">Click the map to set <b>A</b> (transmitter) then <b>B</b> (receiver), or open this page from the planner's “Field mode” link to copy its points and settings.</p>
+        <div id="fmap"></div>
+        <form id="form">
+          <div class="grid3">
+            <label>A lat<input name="a_lat" type="number" step="any" required /></label>
+            <label>A lon<input name="a_lon" type="number" step="any" required /></label>
+            <label>A height (m)<input name="a_height_m" type="number" step="0.5" min="0" value="2" /></label>
+            <label>B lat<input name="b_lat" type="number" step="any" required /></label>
+            <label>B lon<input name="b_lon" type="number" step="any" required /></label>
+            <label>B height (m)<input name="b_height_m" type="number" step="0.5" min="0" value="2" /></label>
+          </div>
+          <div class="grid3">
+            <label>Frequency (MHz)<input name="freq_mhz" type="number" step="0.1" value="917.3" /></label>
+            <label>SF<select name="sf"><option>7</option><option>8</option><option selected>9</option><option>10</option><option>11</option><option>12</option></select></label>
+            <label>BW (kHz)<select name="bw_khz"><option selected>125</option><option>250</option><option>500</option></select></label>
+            <label>TX power (dBm)<input name="tx_power_dbm" type="number" step="1" value="14" /></label>
+            <label>TX gain (dBi)<input name="tx_gain_dbi" type="number" step="0.5" value="0" /></label>
+            <label>RX gain (dBi)<input name="rx_gain_dbi" type="number" step="0.5" value="0" /></label>
+            <label>TX cable loss (dB)<input name="tx_cable_loss_db" type="number" step="0.1" value="0" /></label>
+            <label>RX cable loss (dB)<input name="rx_cable_loss_db" type="number" step="0.1" value="0" /></label>
+            <span></span>
+          </div>
+          <div class="grid3 measured">
+            <label>Measured RSSI (dBm)<input name="rssi_dbm" type="number" step="0.5" required placeholder="-112" /></label>
+            <label>Measured SNR (dB)<input name="snr_db" type="number" step="0.25" placeholder="-4.5" /></label>
+            <label>Packets lost / received<span class="pair"><input name="packets_lost" type="number" min="0" step="1" placeholder="lost" /><input name="packets_received" type="number" min="0" step="1" placeholder="rcvd" /></span></label>
+          </div>
+          <label>Notes<input name="notes" type="text" placeholder="rooftop, light rain, handheld at B…" /></label>
+          <div class="row">
+            <button class="primary" type="submit">Add test</button>
+            <span id="form-msg" class="hint"></span>
+          </div>
+        </form>
+      </section>
+
+      <section class="card results-panel">
+        <div class="row between">
+          <h2>Predicted vs measured</h2>
+          <div class="row">
+            <label class="filebtn">Import CSV<input id="import" type="file" accept=".csv,text/csv,text/plain" hidden /></label>
+            <button id="export" type="button">Export CSV</button>
+            <button id="recompute" type="button" title="Recalculate all predictions">↻</button>
+            <button id="clear" type="button">Clear all</button>
+          </div>
+        </div>
+        <p class="hint">Imported rows without coordinates (e.g. straight from the firmware) get the A/B points currently in the form.</p>
+        <div id="stats" class="stats"></div>
+        <div id="errchart" class="errchart"></div>
+        <div class="tablewrap"><table id="table" class="tests"></table></div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      Data is stored only in this browser (localStorage). Export a CSV to keep it. ·
+      Map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors ·
+      Elevation: Copernicus DEM GLO-30, provided under COPERNICUS by the EU and ESA.
+    </footer>
+    <script type="module" src="/src/field/main.js"></script>
+  </body>
 </html>

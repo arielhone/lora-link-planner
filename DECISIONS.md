@@ -125,3 +125,22 @@ along the great circle.
 - **Charts** are hand-written SVG (terrain profile, prediction-error chart)
   rather than a chart library: the Fresnel ellipse and the obstruction markers
   are easier to draw directly, and it keeps the bundle small.
+
+## 6. Field mode and the CSV format
+
+- Records live in `localStorage` only (key `lora-link-planner.field-tests.v1`);
+  there is no server. Export to CSV to back them up.
+- One CSV format is shared by the web app and the firmware
+  (`src/field/csv.js`, columns listed in `CSV_COLUMNS`). Lines starting with
+  `#` are comments; unknown columns are ignored, so exported files (which add
+  `distance_m` and `predicted_*` columns) can be re-imported.
+- The reference board has no GPS, so firmware rows leave the coordinate
+  columns empty and put the receiver's **uptime in seconds** in `timestamp`.
+  On import, empty coordinates are filled from the A/B points currently in
+  the field-mode form. Each firmware row summarises a window of packets
+  (average RSSI/SNR, received and lost counts).
+- The prediction for a field test uses the same model as the planner with
+  the default chip (SX1262) and Deygout diffraction. "Error" is
+  `measured − predicted`, so positive means the link was better than predicted.
+- Measured SNR on SX126x/SX127x saturates around +10…+13 dB for strong
+  signals, so SNR errors are only meaningful for weak links.
