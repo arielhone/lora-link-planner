@@ -31,7 +31,7 @@ export const CSV_COLUMNS = [
 ];
 
 /** Extra columns written on export (ignored on import). */
-export const EXPORT_EXTRA_COLUMNS = ['distance_m', 'predicted_rssi_dbm', 'predicted_snr_db', 'predicted_margin_db'];
+export const EXPORT_EXTRA_COLUMNS = ['distance_m', 'predicted_rssi_dbm', 'predicted_rssi_open_dbm', 'predicted_snr_db', 'predicted_margin_db'];
 
 /** Parse CSV text into an array of rows (arrays of strings). RFC 4180 quoting. */
 export function parseCsv(text) {

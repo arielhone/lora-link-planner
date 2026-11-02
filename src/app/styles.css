@@ -292,3 +292,6 @@ ol.relays .hops { display: flex; flex-direction: column; font-size: 13px; }
 [hidden] { display: none !important; }
 /* numbers with units ("7.49 km", "−47.8 dB") keep their order inside RTL text */
 table.kv td, table.sf td, table.tests td, .m, .cov-summary b { unicode-bidi: plaintext; }
+.env-row { margin: 8px 0 0; }
+.calibrate { margin-top: 10px; background: color-mix(in srgb, var(--accent) 5%, var(--panel)); }
+[dir="rtl"] input[type="number"] { direction: ltr; text-align: right; }

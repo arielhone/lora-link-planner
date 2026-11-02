@@ -37,3 +37,24 @@ test('error statistics', () => {
   assert.equal(s.snr.n, 1);
   assert.equal(errorStats([]).rssi.mean, null);
 });
+
+import { bestFitExtraLoss } from '../src/field/records.js';
+
+test('best-fit extra loss is the mean shortfall, and reduces the RMS error', () => {
+  const recs = [
+    { rssi_dbm: -110, predicted_rssi_open_dbm: -98, predicted_rssi_dbm: -98 }, // 12 dB worse
+    { rssi_dbm: -120, predicted_rssi_open_dbm: -112, predicted_rssi_dbm: -112 }, // 8 dB worse
+    { rssi_dbm: -100 }, // no prediction: ignored
+  ];
+  const fit = bestFitExtraLoss(recs);
+  assert.equal(fit.lossDb, 10);
+  assert.equal(fit.n, 2);
+  assert.equal(fit.rmseAfterDb, 2);
+  assert.ok(fit.rmseBeforeDb > fit.rmseAfterDb);
+});
+
+test('best-fit extra loss is never negative; null without data', () => {
+  assert.equal(bestFitExtraLoss([{ rssi_dbm: -90, predicted_rssi_open_dbm: -100 }]).lossDb, 0);
+  assert.equal(bestFitExtraLoss([]), null);
+  assert.equal(bestFitExtraLoss([{ rssi_dbm: -90 }]), null);
+});

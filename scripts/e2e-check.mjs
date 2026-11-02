@@ -109,6 +109,42 @@ if (!heOk) failed++;
 if (shots) await page.screenshot({ path: `${shots}/hebrew.png` });
 await page.click('#lang'); // back to English for the next run
 
+// ---- field mode: log tests, calibrate the environment loss, apply it
+const field = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+field.on('pageerror', (e) => errors.push(e.message));
+await field.goto(`${base}field.html#a=32.7614,35.0195,10&b=32.9236,35.0818,5`);
+const header = 'timestamp,a_lat,a_lon,a_height_m,b_lat,b_lon,b_height_m,freq_mhz,sf,bw_khz,tx_power_dbm,tx_gain_dbi,rx_gain_dbi,tx_cable_loss_db,rx_cable_loss_db,rssi_dbm,snr_db,packets_received,packets_lost,notes';
+// two firmware-style rows (no coordinates), ~14 dB weaker than the open-terrain prediction (-103.3 dBm)
+const csv = `# from the receiver\n${header}\n120,,,,,,,917.3,9,125,14,0,0,0,0,-116.0,2.5,19,1,seq 0-19\n240,,,,,,,917.3,9,125,14,0,0,0,0,-118.5,1.0,18,2,seq 20-39\n`;
+await field.setInputFiles('#import', { name: 'rx.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+await field.waitForFunction(() => window.__field.records.length === 2 && window.__field.records.every((r) => Number.isFinite(r.predicted_rssi_open_dbm)), null, { timeout: 30000 });
+await field.click('#calibrate');
+await field.waitForSelector('#cal-apply');
+const fitText = await field.locator('#cal-result').innerText();
+await field.click('#cal-apply');
+await field.waitForFunction(() => document.querySelector('#env').value === 'custom' && Math.abs(window.__field.records[0].predicted_rssi_dbm - window.__field.records[0].rssi_dbm) < 3, null, { timeout: 30000 });
+const fieldState = await field.evaluate(() => ({ env: document.querySelector('#env').value, loss: Number(document.querySelector('#clutter').value), plannerLink: document.querySelector('#cal-planner')?.getAttribute('href') }));
+const fieldOk = fieldState.env === 'custom' && fieldState.loss > 12 && fieldState.loss < 16 && /env=custom&cl=/.test(fieldState.plannerLink);
+console.log(`${fieldOk ? 'PASS' : 'FAIL'} field-mode calibration: "${fitText.split('\n')[0]}" -> applied ${fieldState.loss} dB`);
+if (!fieldOk) failed++;
+if (shots) await field.screenshot({ path: `${shots}/field-calibration.png`, fullPage: true });
+// the planner picks the calibrated value up from the link
+await page.goto('about:blank');
+await page.goto(`${base}#a=32.7614,35.0195,10&b=32.9236,35.0818,5&env=custom&cl=${fieldState.loss}`);
+await page.waitForFunction(() => window.__planner?.analysis, null, { timeout: 30000 });
+const cl = await page.evaluate(() => window.__planner.analysis.clutterLossDb);
+const clOk = cl === fieldState.loss;
+console.log(`${clOk ? 'PASS' : 'FAIL'} planner applies the calibrated environment loss (${cl} dB)`);
+if (!clOk) failed++;
+// field mode in Hebrew
+await field.click('#lang');
+const fhe = await field.evaluate(() => ({ dir: document.documentElement.dir, title: document.querySelector('.log-form h2').textContent }));
+const fheOk = fhe.dir === 'rtl' && fhe.title === 'רישום בדיקת שטח';
+console.log(`${fheOk ? 'PASS' : 'FAIL'} field mode in Hebrew (${fhe.title})`);
+if (!fheOk) failed++;
+if (shots) await field.screenshot({ path: `${shots}/field-hebrew.png`, fullPage: true });
+await field.click('#lang');
+
 if (errors.length) {
   console.log('FAIL page errors:', errors);
   failed++;

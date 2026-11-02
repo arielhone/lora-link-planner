@@ -12,10 +12,13 @@ import { getDem } from '../app/demInstance.js';
 import { decodeState, encodeState } from '../app/state.js';
 import { niceTicks } from '../app/profileChart.js';
 import { escapeHtml, fmtSigned } from '../app/format.js';
+import { t, initLanguageToggle, onLangChange } from '../i18n/index.js';
+import { clutterLoss } from '../physics/clutter.js';
 import { csvToRecords, recordsToCsv, CSV_COLUMNS } from './csv.js';
-import { recordToLinkInput, linkInputToRecordFields, errorStats, hasPoints } from './records.js';
+import { recordToLinkInput, linkInputToRecordFields, errorStats, hasPoints, bestFitExtraLoss } from './records.js';
 
 const STORAGE_KEY = 'lora-link-planner.field-tests.v1';
+const ENV_KEY = 'lora-link-planner.field-environment.v1';
 const $ = (s) => document.querySelector(s);
 const form = $('#form');
 
@@ -33,20 +36,67 @@ function save() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
   } catch (e) {
-    msg(`Could not save to this browser: ${e.message}`);
+    msg(t('field.saveFailed', { msg: e.message }));
   }
 }
 const msg = (t) => ($('#form-msg').textContent = t);
 
+// ------------------------------------------------------------------ environment (page-wide)
+let env = { environment: 'open', clutterLossDb: 0 };
+try {
+  env = { ...env, ...JSON.parse(localStorage.getItem(ENV_KEY) || '{}') };
+} catch {
+  /* ignore */
+}
+function writeEnv() {
+  $('#env').value = env.environment;
+  $('#clutter').value = String(env.environment === 'custom' ? env.clutterLossDb : clutterLoss(env));
+  $('#clutter').disabled = env.environment !== 'custom';
+}
+function saveEnv() {
+  try {
+    localStorage.setItem(ENV_KEY, JSON.stringify(env));
+  } catch {
+    /* ignore */
+  }
+}
+async function recomputeAll() {
+  msg(t('field.recomputing'));
+  records = await Promise.all(records.map(predict));
+  save();
+  render();
+  msg(t('field.updated'));
+}
+$('#env').addEventListener('change', () => {
+  env.environment = $('#env').value;
+  saveEnv();
+  writeEnv();
+  recomputeAll();
+});
+$('#clutter').addEventListener('change', () => {
+  env.clutterLossDb = Math.max(0, Number($('#clutter').value) || 0);
+  saveEnv();
+  recomputeAll();
+});
+
 // ------------------------------------------------------------------ prediction
 async function predict(rec) {
-  if (!hasPoints(rec)) return { ...rec, distance_m: null, predicted_rssi_dbm: null, predicted_snr_db: null, predicted_margin_db: null };
-  const { a, b, settings } = recordToLinkInput(rec);
+  if (!hasPoints(rec)) return { ...rec, distance_m: null, predicted_rssi_dbm: null, predicted_rssi_open_dbm: null, predicted_snr_db: null, predicted_margin_db: null };
+  const { a, b, settings: base } = recordToLinkInput(rec);
+  const settings = { ...base, ...env };
   const dem = await getDem();
   const prof = await terrainProfile(dem, a, b);
   const r = analyzeLink({ distances: prof.distances, elevations: prof.elevations, antennaHeightA: a.h, antennaHeightB: b.h, settings });
   const round = (v) => Math.round(v * 10) / 10;
-  return { ...rec, distance_m: Math.round(r.distanceM), predicted_rssi_dbm: round(r.rxPowerDbm), predicted_snr_db: round(r.snrDb), predicted_margin_db: round(r.marginDb) };
+  return {
+    ...rec,
+    distance_m: Math.round(r.distanceM),
+    predicted_rssi_dbm: round(r.rxPowerDbm),
+    // the same prediction without any environment loss, for calibration
+    predicted_rssi_open_dbm: round(r.rxPowerDbm + r.clutterLossDb),
+    predicted_snr_db: round(r.snrDb),
+    predicted_margin_db: round(r.marginDb),
+  };
 }
 
 // ------------------------------------------------------------------ map in the form
@@ -112,7 +162,7 @@ function formRecord() {
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  msg('Computing prediction…');
+  msg(t('field.computing'));
   try {
     const rec = await predict({ ...formRecord(), id: crypto.randomUUID?.() ?? String(Date.now()) });
     records.push(rec);
@@ -123,9 +173,9 @@ form.addEventListener('submit', async (e) => {
     form.packets_lost.value = '';
     form.packets_received.value = '';
     form.notes.value = '';
-    msg(`Added. Predicted ${rec.predicted_rssi_dbm} dBm, measured ${rec.rssi_dbm} dBm.`);
+    msg(t('field.added', { pred: rec.predicted_rssi_dbm, meas: rec.rssi_dbm }));
   } catch (err) {
-    msg(`Error: ${err.message}`);
+    msg(t('field.error', { msg: err.message }));
   }
 });
 
@@ -150,9 +200,9 @@ $('#import').addEventListener('change', async (e) => {
     records = records.concat(out);
     save();
     render();
-    msg(`Imported ${out.length} test${out.length === 1 ? '' : 's'}.`);
+    msg(t('field.imported', { n: out.length }));
   } catch (err) {
-    msg(`Import failed: ${err.message}`);
+    msg(t('field.importFailed', { msg: err.message }));
   }
 });
 
@@ -165,16 +215,10 @@ $('#export').addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 });
 
-$('#recompute').addEventListener('click', async () => {
-  msg('Recomputing…');
-  records = await Promise.all(records.map(predict));
-  save();
-  render();
-  msg('Predictions updated.');
-});
+$('#recompute').addEventListener('click', recomputeAll);
 
 $('#clear').addEventListener('click', () => {
-  if (!records.length || !confirm(`Delete all ${records.length} logged tests from this browser?`)) return;
+  if (!records.length || !confirm(t('field.confirmClear', { n: records.length }))) return;
   records = [];
   save();
   render();
@@ -204,10 +248,10 @@ const fmt = (v, d = 1) => (Number.isFinite(v) ? v.toFixed(d) : '—');
 function render() {
   const s = errorStats(records);
   $('#stats').innerHTML = `
-    <div><small>Tests</small><b>${records.length}</b></div>
-    <div><small>RSSI bias (meas − pred)</small><b>${s.rssi.n ? `${fmtSigned(s.rssi.mean)} dB` : '—'}</b></div>
-    <div><small>RSSI RMS error</small><b>${s.rssi.n ? `${s.rssi.rmse.toFixed(1)} dB` : '—'}</b></div>
-    <div><small>SNR bias</small><b>${s.snr.n ? `${fmtSigned(s.snr.mean)} dB` : '—'}</b></div>`;
+    <div><small>${t('field.stat.tests')}</small><b>${records.length}</b></div>
+    <div><small>${t('field.stat.bias')}</small><b dir="ltr">${s.rssi.n ? `${fmtSigned(s.rssi.mean)} dB` : '—'}</b></div>
+    <div><small>${t('field.stat.rmse')}</small><b dir="ltr">${s.rssi.n ? `${s.rssi.rmse.toFixed(1)} dB` : '—'}</b></div>
+    <div><small>${t('field.stat.snrBias')}</small><b dir="ltr">${s.snr.n ? `${fmtSigned(s.snr.mean)} dB` : '—'}</b></div>`;
   renderChart();
   const rows = records
     .map((r, i) => {
@@ -226,12 +270,13 @@ function render() {
         <td>${fmt(r.snr_db)}</td>
         <td>${loss}</td>
         <td class="notes">${escapeHtml(r.notes || '')}</td>
-        <td>${hasPoints(r) ? `<a href="#" data-open="${escapeHtml(r.id)}" title="Open in planner">map</a>` : ''}
-            <button type="button" class="link" data-del="${escapeHtml(r.id)}" title="Delete">✕</button></td>
+        <td>${hasPoints(r) ? `<a href="#" data-open="${escapeHtml(r.id)}" title="${escapeHtml(t('field.openTitle'))}">${t('field.openMap')}</a>` : ''}
+            <button type="button" class="link" data-del="${escapeHtml(r.id)}" title="${escapeHtml(t('field.delete'))}">✕</button></td>
       </tr>`;
     })
     .join('');
-  $('#table').innerHTML = `<thead><tr><th>#</th><th>Time</th><th>km</th><th>SF/BW</th><th>Pred. RSSI</th><th>Meas. RSSI</th><th>Error</th><th>Pred. SNR</th><th>Meas. SNR</th><th>Loss</th><th class="notes">Notes</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="12" style="text-align:center">No tests logged yet.</td></tr>'}</tbody>`;
+  const th = (k) => `<th>${t(`field.th.${k}`)}</th>`;
+  $('#table').innerHTML = `<thead><tr><th>#</th>${['time', 'km', 'sfbw', 'predRssi', 'measRssi', 'error', 'predSnr', 'measSnr', 'loss'].map(th).join('')}<th class="notes">${t('field.th.notes')}</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="12" style="text-align:center">${t('field.noTests')}</td></tr>`}</tbody>`;
 }
 
 /** Scatter plot: prediction error (measured − predicted RSSI) against distance. */
@@ -239,7 +284,7 @@ function renderChart() {
   const box = $('#errchart');
   const pts = records.filter((r) => Number.isFinite(r.rssi_dbm) && Number.isFinite(r.predicted_rssi_dbm) && Number.isFinite(r.distance_m));
   if (!pts.length) {
-    box.innerHTML = '<p class="empty">The prediction-error chart appears once you log a test.</p>';
+    box.innerHTML = `<p class="empty">${escapeHtml(t('field.chartEmpty'))}</p>`;
     return;
   }
   const NS = 'http://www.w3.org/2000/svg';
@@ -263,13 +308,59 @@ function renderChart() {
     const c = Math.abs(e) <= 6 ? 'var(--good)' : e > 0 ? 'var(--accent)' : 'var(--bad)';
     parts.push(`<circle class="dot" cx="${x(r.distance_m / 1000)}" cy="${y(e)}" r="5" fill="${c}"><title>${escapeHtml(r.notes || `test ${i + 1}`)}: ${fmtSigned(e)} dB at ${(r.distance_m / 1000).toFixed(2)} km</title></circle>`);
   });
-  parts.push(`<text x="${m.l + 4}" y="${m.t + 10}" class="axis-label" font-size="11" fill="currentColor">↑ better than predicted</text>`);
-  parts.push(`<text x="${m.l + 4}" y="${H - m.b - 6}" class="axis-label" font-size="11" fill="currentColor">↓ worse than predicted</text>`);
-  box.innerHTML = `<svg xmlns="${NS}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Prediction error versus distance"><g class="axis">${parts.join('')}</g></svg>
-    <p class="hint">Each dot is one test: measured − predicted RSSI (dB) against distance. Green band = within ±6 dB; dashed line = average error.</p>`;
+  parts.push(`<text x="${m.l + 4}" y="${m.t + 10}" class="axis-label" font-size="11" fill="currentColor">${escapeHtml(t('field.chartBetter'))}</text>`);
+  parts.push(`<text x="${m.l + 4}" y="${H - m.b - 6}" class="axis-label" font-size="11" fill="currentColor">${escapeHtml(t('field.chartWorse'))}</text>`);
+  box.innerHTML = `<svg xmlns="${NS}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${escapeHtml(t('field.chartAria'))}"><g class="axis">${parts.join('')}</g></svg>
+    <p class="hint">${escapeHtml(t('field.chartHint'))}</p>`;
 }
 
+// ------------------------------------------------------------------ calibration
+let lastFit = null;
+function renderCalibration() {
+  const box = $('#cal-result');
+  if (!lastFit) {
+    box.innerHTML = '';
+    return;
+  }
+  if (lastFit === 'none') {
+    box.innerHTML = `<p class="hint">${escapeHtml(t('field.calNeed'))}</p>`;
+    return;
+  }
+  const f = lastFit;
+  const plannerHash = `env=custom&cl=${f.lossDb}`;
+  box.innerHTML = `<p>${t('field.calResult_html', {
+    loss: f.lossDb,
+    n: f.n,
+    before: f.rmseBeforeDb === null ? '—' : f.rmseBeforeDb.toFixed(1),
+    after: f.rmseAfterDb.toFixed(1),
+  })}</p>
+    <div class="row"><button type="button" class="primary" id="cal-apply">${t('field.calApply')}</button>
+    <a href="./index.html#${plannerHash}" id="cal-planner">${t('field.calPlanner')}</a></div>`;
+}
+$('#calibrate').addEventListener('click', () => {
+  lastFit = bestFitExtraLoss(records) ?? 'none';
+  renderCalibration();
+});
+$('#cal-result').addEventListener('click', async (e) => {
+  if (e.target.id !== 'cal-apply' || !lastFit || lastFit === 'none') return;
+  env = { environment: 'custom', clutterLossDb: lastFit.lossDb };
+  saveEnv();
+  writeEnv();
+  await recomputeAll();
+  msg(t('field.calApplied', { loss: env.clutterLossDb }));
+  lastFit = bestFitExtraLoss(records);
+  renderCalibration();
+});
+
 window.addEventListener('resize', () => renderChart());
+initLanguageToggle($('#lang'));
+onLangChange(() => {
+  render();
+  renderCalibration();
+});
+writeEnv();
 render();
-getDem().catch((e) => msg(`Elevation data failed to load: ${e.message}`));
+getDem().catch((e) => msg(t('field.demFailed', { msg: e.message })));
+// tests saved by an older version lack the "open" prediction used for calibration
+if (records.some((r) => hasPoints(r) && r.predicted_rssi_open_dbm === undefined)) recomputeAll();
 window.__field = { get records() { return records; } };
