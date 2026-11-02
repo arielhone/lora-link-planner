@@ -55,3 +55,13 @@ test('CSV import requires rssi column', () => {
   assert.throws(() => csvToRecords('foo,bar\n1,2\n'), /rssi_dbm/);
   assert.equal(CSV_COLUMNS[0], 'timestamp');
 });
+
+test('CSV import skips repeated header lines (firmware output)', () => {
+  const header = CSV_COLUMNS.join(',');
+  const row = '120,,,2,,,2,917.3,9,125,14,0.0,0.0,0.0,0.0,-102.5,5.75,19,1,seq 0-19';
+  const recs = csvToRecords(`# boot\n${header}\n${row}\n${header}\n${row}\n`);
+  assert.equal(recs.length, 2);
+  assert.equal(recs[1].packets_lost, 1);
+  assert.equal(recs[1].a_lat, null);
+  assert.equal(recs[1].a_height_m, 2);
+});

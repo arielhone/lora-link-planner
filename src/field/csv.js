@@ -84,7 +84,9 @@ export function csvToRecords(text) {
   if (rows.length === 0) return [];
   const header = rows[0].map((h) => h.trim().toLowerCase());
   if (!header.includes('rssi_dbm')) throw new Error('CSV header must contain at least an "rssi_dbm" column');
-  return rows.slice(1).map((r) => {
+  const isHeader = (r) => r.map((h) => h.trim().toLowerCase()).join(',') === header.join(',');
+  // the firmware repeats the header now and then: skip those lines
+  return rows.slice(1).filter((r) => !isHeader(r)).map((r) => {
     const rec = {};
     header.forEach((h, idx) => {
       if (!CSV_COLUMNS.includes(h)) return;
