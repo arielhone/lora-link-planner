@@ -1,0 +1,19 @@
+{
+  "name": "lora-link-planner",
+  "version": "1.0.0",
+  "description": "Will my LoRa message get through? A terrain-aware link planner for Israel.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.dem-cache/
+__pycache__/
+*.pyc
+.pio/
+firmware/.pio/
+.vscode/
+.DS_Store
+test-results/
