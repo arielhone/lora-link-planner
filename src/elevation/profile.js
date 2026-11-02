@@ -39,6 +39,14 @@ export function pathPoints(a, b, stepM = DEFAULT_STEP_M, maxSamples = MAX_SAMPLE
 export async function terrainProfile(dem, a, b, stepM = DEFAULT_STEP_M) {
   const points = pathPoints(a, b, stepM);
   await dem.ensure(points);
+  return terrainProfileSync(dem, a, b, stepM, points);
+}
+
+/**
+ * Same as terrainProfile, but synchronous: every tile on the path must
+ * already be loaded (e.g. with dem.ensureBox). Used by bulk jobs.
+ */
+export function terrainProfileSync(dem, a, b, stepM = DEFAULT_STEP_M, points = pathPoints(a, b, stepM)) {
   return {
     points,
     distances: points.map((p) => p.d),

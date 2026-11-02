@@ -65,3 +65,26 @@ test('CSV import skips repeated header lines (firmware output)', () => {
   assert.equal(recs[1].a_lat, null);
   assert.equal(recs[1].a_height_m, 2);
 });
+
+test('coverage mode, environment and relay height survive the URL', () => {
+  const s = defaultState();
+  s.mode = 'coverage';
+  s.a = { lat: 32.76, lon: 35.02, h: 10 };
+  s.coverage = { radiusKm: 30, rxHeightM: 1.5, resolution: 'fine' };
+  s.settings.environment = 'custom';
+  s.settings.clutterLossDb = 7.5;
+  s.relayHeightM = 12;
+  const d = decodeState(encodeState(s));
+  assert.equal(d.mode, 'coverage');
+  assert.deepEqual(d.coverage, s.coverage);
+  assert.equal(d.settings.environment, 'custom');
+  assert.equal(d.settings.clutterLossDb, 7.5);
+  assert.equal(d.relayHeightM, 12);
+  const bad = decodeState('m=x&cr=7&crx=-1&cres=ultra&env=space&rh=abc');
+  assert.equal(bad.mode, 'link');
+  assert.equal(bad.coverage.radiusKm, 10);
+  assert.equal(bad.coverage.rxHeightM, 2);
+  assert.equal(bad.coverage.resolution, 'normal');
+  assert.equal(bad.settings.environment, 'open');
+  assert.equal(bad.relayHeightM, 5);
+});

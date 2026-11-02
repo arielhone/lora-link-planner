@@ -254,3 +254,40 @@ test('requiredExtraHeight: only raising one end needs more height than both', ()
   const onlyA = requiredExtraHeight(distances, elevations, 5, 5, 917.3, 4 / 3, 'a');
   assert.ok(both > 0 && onlyA > both, `${both} ${onlyA}`);
 });
+
+// ---------------------------------------------------------------- clutter
+import { clutterLoss, ENVIRONMENT_LOSS_DB, inverseQ, p2108TerrestrialClutterLoss } from '../src/physics/index.js';
+
+test('environment presets and custom clutter loss', () => {
+  assert.equal(clutterLoss({ environment: 'open' }), 0);
+  assert.equal(clutterLoss({ environment: 'suburban' }), ENVIRONMENT_LOSS_DB.suburban);
+  assert.equal(clutterLoss({ environment: 'urban' }), 20);
+  assert.equal(clutterLoss({ environment: 'custom', clutterLossDb: 7.5 }), 7.5);
+  assert.equal(clutterLoss({ environment: 'custom', clutterLossDb: -3 }), 0);
+  assert.equal(clutterLoss({}), 0);
+});
+
+test('inverse Q function', () => {
+  close(inverseQ(0.5), 0, 1e-3);
+  close(inverseQ(0.1), 1.2816, 1e-3);
+  close(inverseQ(0.9), -1.2816, 1e-3);
+});
+
+test('ITU-R P.2108 terrestrial clutter loss: ~23 dB median at 917 MHz, saturates with distance', () => {
+  close(p2108TerrestrialClutterLoss(0.917, 5), 23.1, 0.1);
+  close(p2108TerrestrialClutterLoss(0.917, 20), 23.1, 0.1);
+  assert.ok(p2108TerrestrialClutterLoss(0.917, 0.25) < 23);
+  assert.ok(p2108TerrestrialClutterLoss(0.917, 5, 90) > p2108TerrestrialClutterLoss(0.917, 5, 50));
+});
+
+test('analyzeLink applies the environment loss and can skip what-if', () => {
+  const distances = Array.from({ length: 51 }, (_, i) => i * 40);
+  const elevations = distances.map(() => 0);
+  const open = analyzeLink({ distances, elevations, antennaHeightA: 20, antennaHeightB: 20 });
+  const urban = analyzeLink({ distances, elevations, antennaHeightA: 20, antennaHeightB: 20, settings: { environment: 'urban' }, whatIf: false, geometry: false });
+  close(open.rxPowerDbm - urban.rxPowerDbm, 20, 1e-9);
+  assert.equal(urban.clutterLossDb, 20);
+  assert.equal(urban.whatIf, undefined);
+  assert.equal(urban.geometry, null);
+  assert.ok(open.lines.some((l) => l.key === 'clutter'));
+});

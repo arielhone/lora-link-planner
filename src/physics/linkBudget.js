@@ -7,7 +7,7 @@
  * minimum balance the bank allows). The difference is the LINK MARGIN.
  *
  *   EIRP   = Ptx + Gtx - Lcable_tx
- *   Prx    = EIRP - FSPL - Lobstruction + Grx - Lcable_rx
+ *   Prx    = EIRP - FSPL - Lobstruction - Lclutter + Grx - Lcable_rx
  *   margin = Prx - sensitivity
  *
  * All values in dB / dBm, so everything is simple addition and subtraction.
@@ -56,6 +56,7 @@ export function verdict(marginDb) {
  * @param {number} p.rxCableLossDb
  * @param {number} p.pathLossDb free-space path loss
  * @param {number} p.obstructionLossDb diffraction loss from terrain
+ * @param {number} [p.clutterLossDb=0] extra loss from buildings/trees (environment)
  * @param {number} p.sensitivityDbm receiver sensitivity
  * @param {number} [p.noiseFloorDbm] receiver noise floor, to estimate SNR
  * @returns {{eirpDbm:number, rxPowerDbm:number, marginDb:number, snrDb:number|null,
@@ -69,11 +70,12 @@ export function linkBudget({
   rxCableLossDb,
   pathLossDb,
   obstructionLossDb,
+  clutterLossDb = 0,
   sensitivityDbm,
   noiseFloorDbm,
 }) {
   const e = eirp(txPowerDbm, txGainDbi, txCableLossDb);
-  const rx = e - pathLossDb - obstructionLossDb + rxGainDbi - rxCableLossDb;
+  const rx = e - pathLossDb - obstructionLossDb - clutterLossDb + rxGainDbi - rxCableLossDb;
   const margin = rx - sensitivityDbm;
   return {
     eirpDbm: e,
@@ -82,14 +84,16 @@ export function linkBudget({
     snrDb: noiseFloorDbm === undefined ? null : rx - noiseFloorDbm,
     verdict: verdict(margin),
     // The "bank statement", in order, for display.
+    // `key` is a stable id for translations, `label` the English text.
     lines: [
-      { label: 'TX power', value: txPowerDbm },
-      { label: 'TX antenna gain', value: +txGainDbi },
-      { label: 'TX cable loss', value: -txCableLossDb },
-      { label: 'Free-space path loss', value: -pathLossDb },
-      { label: 'Obstruction loss', value: -obstructionLossDb },
-      { label: 'RX antenna gain', value: +rxGainDbi },
-      { label: 'RX cable loss', value: -rxCableLossDb },
+      { key: 'txPower', label: 'TX power', value: txPowerDbm },
+      { key: 'txGain', label: 'TX antenna gain', value: +txGainDbi },
+      { key: 'txCable', label: 'TX cable loss', value: -txCableLossDb },
+      { key: 'fspl', label: 'Free-space path loss', value: -pathLossDb },
+      { key: 'obstruction', label: 'Obstruction loss', value: -obstructionLossDb },
+      { key: 'clutter', label: 'Environment (clutter) loss', value: -clutterLossDb },
+      { key: 'rxGain', label: 'RX antenna gain', value: +rxGainDbi },
+      { key: 'rxCable', label: 'RX cable loss', value: -rxCableLossDb },
     ],
   };
 }

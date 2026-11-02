@@ -13,6 +13,7 @@ import { heightsAboveLos, deygout, singleKnifeEdge } from './diffraction.js';
 import { sensitivity, noiseFloor, timeOnAir, SPREADING_FACTORS } from './lora.js';
 import { linkBudget } from './linkBudget.js';
 import { checkCompliance } from './regulations.js';
+import { clutterLoss } from './clutter.js';
 
 /** Default radio settings (Israel, Heltec V3 class hardware). */
 export const DEFAULT_SETTINGS = {
@@ -29,6 +30,8 @@ export const DEFAULT_SETTINGS = {
   chip: 'sx1262',
   kFactor: K_FACTOR_STANDARD,
   diffraction: 'deygout', // 'deygout' | 'single' | 'none'
+  environment: 'open', // 'open' | 'suburban' | 'urban' | 'custom'
+  clutterLossDb: 0, // used when environment === 'custom'
 };
 
 /** Fraction of the first Fresnel zone that should be clear of obstacles. */
@@ -115,14 +118,17 @@ export function requiredExtraHeight(distances, elevations, heightA, heightB, fre
  * @param {number} p.antennaHeightA antenna A above ground (m)
  * @param {number} p.antennaHeightB antenna B above ground (m)
  * @param {object} [p.settings] radio settings, see DEFAULT_SETTINGS
+ * @param {boolean} [p.whatIf=true] also compute the SF table and required
+ *        antenna heights (skip it for bulk jobs like coverage maps)
+ * @param {boolean} [p.geometry=true] also return per-sample geometry for the chart
  */
-export function analyzeLink({ distances, elevations, antennaHeightA, antennaHeightB, settings = {} }) {
+export function analyzeLink({ distances, elevations, antennaHeightA, antennaHeightB, settings = {}, whatIf = true, geometry: wantGeometry = true }) {
   const s = { ...DEFAULT_SETTINGS, ...settings };
   const D = distances[distances.length - 1];
   const heightA = elevations[0] + antennaHeightA;
   const heightB = elevations[elevations.length - 1] + antennaHeightB;
 
-  const geometry = pathGeometry(distances, elevations, heightA, heightB, s.freqMHz, s.kFactor);
+  const geometry = wantGeometry ? pathGeometry(distances, elevations, heightA, heightB, s.freqMHz, s.kFactor) : null;
 
   const pts = heightsAboveLos(distances, elevations, heightA, heightB, s.kFactor);
   let diffraction = { loss: 0, edges: [] };
@@ -138,6 +144,7 @@ export function analyzeLink({ distances, elevations, antennaHeightA, antennaHeig
     rxCableLossDb: s.rxCableLossDb,
     pathLossDb,
     obstructionLossDb: diffraction.loss,
+    clutterLossDb: clutterLoss(s),
   };
   const budgetFor = (sf, bw) =>
     linkBudget({
@@ -149,6 +156,24 @@ export function analyzeLink({ distances, elevations, antennaHeightA, antennaHeig
   const budget = budgetFor(s.sf, s.bandwidthKHz);
   const toa = (sf) =>
     timeOnAir({ sf, bandwidthKHz: s.bandwidthKHz, payloadBytes: s.payloadBytes, codingRate: s.codingRate });
+
+  const base = {
+    settings: s,
+    distanceM: D,
+    heightA,
+    heightB,
+    geometry,
+    pathLossDb,
+    obstructionLossDb: diffraction.loss,
+    clutterLossDb: common.clutterLossDb,
+    diffractionEdges: diffraction.edges,
+    sensitivityDbm: sensitivity(s.sf, s.bandwidthKHz, s.chip),
+    noiseFloorDbm: noiseFloor(s.bandwidthKHz),
+    ...budget,
+    timeOnAirS: toa(s.sf),
+    compliance: checkCompliance({ freqMHz: s.freqMHz, eirpDbm: budget.eirpDbm }),
+  };
+  if (!whatIf) return base;
 
   // "What if" #1: every SF at the current bandwidth.
   const sfTable = SPREADING_FACTORS.map((sf) => {
@@ -166,19 +191,7 @@ export function analyzeLink({ distances, elevations, antennaHeightA, antennaHeig
   const extraB = req('b');
 
   return {
-    settings: s,
-    distanceM: D,
-    heightA,
-    heightB,
-    geometry,
-    pathLossDb,
-    obstructionLossDb: diffraction.loss,
-    diffractionEdges: diffraction.edges,
-    sensitivityDbm: sensitivity(s.sf, s.bandwidthKHz, s.chip),
-    noiseFloorDbm: noiseFloor(s.bandwidthKHz),
-    ...budget,
-    timeOnAirS: toa(s.sf),
-    compliance: checkCompliance({ freqMHz: s.freqMHz, eirpDbm: budget.eirpDbm }),
+    ...base,
     whatIf: {
       sfTable,
       firstWorkingSf,

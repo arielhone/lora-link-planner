@@ -21,20 +21,35 @@ const KEYS = {
   codingRate: 'cr',
   chip: 'chip',
   diffraction: 'dm',
+  environment: 'env',
+  clutterLossDb: 'cl',
 };
 
-const STRING_SETTINGS = new Set(['chip', 'diffraction']);
+const STRING_SETTINGS = new Set(['chip', 'diffraction', 'environment']);
 const ALLOWED = {
   sf: [7, 8, 9, 10, 11, 12],
   bandwidthKHz: [125, 250, 500],
   codingRate: [1, 2, 3, 4],
   chip: ['sx1262', 'sx1276'],
   diffraction: ['deygout', 'single', 'none'],
+  environment: ['open', 'suburban', 'urban', 'custom'],
 };
+
+/** Coverage-map defaults (radius km, receiver height m, resolution). */
+export const DEFAULT_COVERAGE = { radiusKm: 10, rxHeightM: 2, resolution: 'normal' };
+export const COVERAGE_RADII_KM = [5, 10, 15, 20, 30];
+export const DEFAULT_RELAY_HEIGHT_M = 5;
 
 /** A fresh default state. */
 export function defaultState() {
-  return { a: null, b: null, settings: { ...DEFAULT_SETTINGS } };
+  return {
+    mode: 'link', // 'link' | 'coverage'
+    a: null, // in coverage mode, A is the transmitter
+    b: null,
+    settings: { ...DEFAULT_SETTINGS },
+    coverage: { ...DEFAULT_COVERAGE },
+    relayHeightM: DEFAULT_RELAY_HEIGHT_M,
+  };
 }
 
 const round = (x, n) => {
@@ -59,6 +74,7 @@ function decodePoint(s) {
  */
 export function encodeState(state) {
   const parts = [];
+  if (state.mode === 'coverage') parts.push('m=cov');
   if (state.a) parts.push(`a=${encodePoint(state.a)}`);
   if (state.b) parts.push(`b=${encodePoint(state.b)}`);
   for (const [name, key] of Object.entries(KEYS)) {
@@ -66,6 +82,11 @@ export function encodeState(state) {
     if (v === undefined || v === DEFAULT_SETTINGS[name]) continue;
     parts.push(`${key}=${encodeURIComponent(String(v))}`);
   }
+  const cov = state.coverage || DEFAULT_COVERAGE;
+  if (cov.radiusKm !== DEFAULT_COVERAGE.radiusKm) parts.push(`cr=${cov.radiusKm}`);
+  if (cov.rxHeightM !== DEFAULT_COVERAGE.rxHeightM) parts.push(`crx=${round(cov.rxHeightM, 1)}`);
+  if (cov.resolution !== DEFAULT_COVERAGE.resolution) parts.push(`cres=${cov.resolution}`);
+  if (state.relayHeightM !== undefined && state.relayHeightM !== DEFAULT_RELAY_HEIGHT_M) parts.push(`rh=${round(state.relayHeightM, 1)}`);
   return parts.join('&');
 }
 
@@ -86,5 +107,14 @@ export function decodeState(hash) {
     if (ALLOWED[name] && !ALLOWED[name].includes(v)) continue;
     state.settings[name] = v;
   }
+  if (!(state.settings.clutterLossDb >= 0)) state.settings.clutterLossDb = 0;
+  state.mode = params.get('m') === 'cov' ? 'coverage' : 'link';
+  const cr = Number(params.get('cr'));
+  if (COVERAGE_RADII_KM.includes(cr)) state.coverage.radiusKm = cr;
+  const crx = Number(params.get('crx'));
+  if (params.has('crx') && Number.isFinite(crx) && crx >= 0 && crx <= 500) state.coverage.rxHeightM = crx;
+  if (['normal', 'fine'].includes(params.get('cres'))) state.coverage.resolution = params.get('cres');
+  const rh = Number(params.get('rh'));
+  if (params.has('rh') && Number.isFinite(rh) && rh >= 0 && rh <= 500) state.relayHeightM = rh;
   return state;
 }

@@ -89,6 +89,23 @@ export class Dem {
     await Promise.all([...names].map((n) => this.loadOne(n)));
   }
 
+  /**
+   * Load every tile that intersects a lat/lon box (for bulk jobs such as
+   * coverage maps, so each profile doesn't have to check its own tiles).
+   */
+  async ensureBox(south, west, north, east) {
+    const T = this.m.tileSize;
+    const a = this.gridPos(north, west);
+    const b = this.gridPos(south, east);
+    const r0 = Math.max(0, Math.floor(Math.floor(a.r) / T));
+    const r1 = Math.min(Math.ceil(this.m.rows / T) - 1, Math.floor((Math.floor(b.r) + 1) / T));
+    const c0 = Math.max(0, Math.floor(Math.floor(a.c) / T));
+    const c1 = Math.min(Math.ceil(this.m.cols / T) - 1, Math.floor((Math.floor(b.c) + 1) / T));
+    const jobs = [];
+    for (let tr = r0; tr <= r1; tr++) for (let tc = c0; tc <= c1; tc++) jobs.push(this.loadOne(`${tr}_${tc}`));
+    await Promise.all(jobs);
+  }
+
   inGrid(R, C) {
     return R >= 0 && C >= 0 && R < this.m.rows && C < this.m.cols;
   }

@@ -5,6 +5,8 @@
  * the terrain blocks the line (red) or intrudes into 60% of the Fresnel zone
  * (orange). Diffraction edges used by the loss model are labelled.
  */
+import { t } from '../i18n/index.js';
+
 const NS = 'http://www.w3.org/2000/svg';
 
 function el(name, attrs = {}, parent) {
@@ -50,20 +52,20 @@ export function renderProfile(container, analysis) {
   const x = (d) => m.l + (d / D) * (W - m.l - m.r);
   const y = (h) => m.t + (1 - (h - yMin) / (yMax - yMin)) * (H - m.t - m.b);
 
-  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img', 'aria-label': 'Terrain profile between A and B' }, container);
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img', 'aria-label': t('profile.aria') }, container);
 
   // grid + axes
   const g = el('g', { class: 'axis' }, svg);
   const km = D >= 2000;
-  for (const t of niceTicks(0, km ? D / 1000 : D, Math.max(3, Math.floor(W / 90)))) {
-    const xx = x(km ? t * 1000 : t);
+  for (const tick of niceTicks(0, km ? D / 1000 : D, Math.max(3, Math.floor(W / 90)))) {
+    const xx = x(km ? tick * 1000 : tick);
     el('line', { x1: xx, x2: xx, y1: m.t, y2: H - m.b, class: 'grid' }, g);
-    el('text', { x: xx, y: H - m.b + 16, 'text-anchor': 'middle' }, g).textContent = km ? `${t} km` : `${t} m`;
+    el('text', { x: xx, y: H - m.b + 16, 'text-anchor': 'middle' }, g).textContent = km ? `${tick} ${t('unit.km')}` : `${tick} ${t('unit.m')}`;
   }
-  for (const t of niceTicks(yMin, yMax, Math.max(3, Math.floor(H / 45)))) {
-    const yy = y(t);
+  for (const tick of niceTicks(yMin, yMax, Math.max(3, Math.floor(H / 45)))) {
+    const yy = y(tick);
     el('line', { x1: m.l, x2: W - m.r, y1: yy, y2: yy, class: 'grid' }, g);
-    el('text', { x: m.l - 6, y: yy + 4, 'text-anchor': 'end' }, g).textContent = `${t} m`;
+    el('text', { x: m.l - 6, y: yy + 4, 'text-anchor': 'end' }, g).textContent = `${tick} ${t('unit.m')}`;
   }
 
   // Fresnel zone (ellipse-like band around the LOS)
@@ -138,10 +140,15 @@ export function renderProfile(container, analysis) {
     cursor.setAttribute('x1', x(p.d));
     cursor.setAttribute('x2', x(p.d));
     cursor.setAttribute('visibility', 'visible');
-    const frac = Number.isFinite(p.fresnelFraction) ? `${Math.round(p.fresnelFraction * 100)}% of F1` : '—';
-    tip.innerHTML =
-      `<b>${(p.d / 1000).toFixed(2)} km</b><br>ground ${p.ground.toFixed(0)} m (+${p.bulge.toFixed(1)} m curve)` +
-      `<br>clearance ${p.clearance.toFixed(1)} m (${frac})<br>Fresnel radius ${p.r1.toFixed(1)} m`;
+    const frac = Number.isFinite(p.fresnelFraction) ? t('profile.ofF1', { pct: Math.round(p.fresnelFraction * 100) }) : '—';
+    tip.innerHTML = t('profile.tip_html', {
+      d: (p.d / 1000).toFixed(2),
+      ground: p.ground.toFixed(0),
+      bulge: p.bulge.toFixed(1),
+      clear: p.clearance.toFixed(1),
+      frac,
+      r1: p.r1.toFixed(1),
+    });
     tip.hidden = false;
     const left = (x(p.d) / W) * rect.width;
     tip.style.left = `${Math.min(rect.width - 170, Math.max(0, left + 10))}px`;
