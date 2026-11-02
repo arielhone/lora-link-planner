@@ -144,3 +144,105 @@ along the great circle.
   `measured − predicted`, so positive means the link was better than predicted.
 - Measured SNR on SX126x/SX127x saturates around +10…+13 dB for strong
   signals, so SNR errors are only meaningful for weak links.
+
+## 7. Environment (clutter) loss
+
+**Decision:** one extra loss term, applied once per link, with presets
+**open = 0 dB, suburban = 10 dB, urban = 20 dB**, plus **custom** (any value,
+e.g. from Field-mode calibration). Code: `src/physics/clutter.js`.
+
+**Why these numbers**
+
+- **ITU-R P.2108-1 §3.2** (statistical clutter loss for terrestrial paths,
+  one end inside urban/suburban clutter) gives a **median of ≈ 23 dB at
+  917 MHz** for paths longer than about 1 km:
+  `L = −5·log10(10^(−0.2·Ll) + 10^(−0.2·Ls))`, with
+  `Ll = 23.5 + 9.6·log10(f)` and `Ls = 32.98 + 23.9·log10(d) + 3·log10(f)`.
+  It's implemented as `p2108TerrestrialClutterLoss()` and unit-tested.
+- The **Okumura–Hata** model's suburban correction at 900 MHz,
+  `2·[log10(f/28)]² + 5.4 ≈ 10 dB`, says suburban areas are about 10 dB
+  better than urban ones.
+- Our terrain model uses a *surface* model (DSM) that already captures large
+  buildings and dense forest in part, so the full P.2108 value would
+  double-count some of that. The urban preset is therefore set slightly below
+  P.2108 (20 dB), and suburban 10 dB below urban.
+- "Open" is 0 dB: free space + terrain is the right model for hilltops,
+  fields and desert.
+
+These are rough planning values. Real loss depends strongly on where the
+device sits: a device inside a building or in a pocket can lose much more.
+That's why Field mode can fit the value from your own measurements.
+
+**Calibration (Field mode):** each prediction also stores the RSSI predicted
+*without* environment loss (`predicted_rssi_open_dbm`). The least-squares
+best single extra loss is simply the average shortfall
+`L = mean(predicted_open − measured)`, clamped at 0 (`bestFitExtraLoss()` in
+`src/field/records.js`). The environment setting in Field mode is page-wide
+(saved in localStorage), not stored per test, so one calibration fits all
+logged tests. The result can be applied to Field mode, or opened in the
+planner as `#env=custom&cl=<dB>`.
+
+## 8. Coverage map
+
+- **Grid:** regular in latitude/longitude, centred on the transmitter, square
+  cells in metres, only cells within the radius are computed (a disc). Cell
+  size is chosen so there are at most ~81 cells across ("normal") or ~161
+  ("fine"). That's ~5,000 or ~20,000 full link calculations. Radii: 5, 10,
+  15, 20, 30 km. Code: `src/coverage/grid.js`.
+- **Per cell:** the same `analyzeLink()` as the A–B view (FSPL + Deygout +
+  environment), with terrain sampled every **60 m** (the DEM spacing) instead
+  of 30 m, and without the what-if extras. In Node a 5,000-cell map takes about
+  1 s, so the browser stays well within a few seconds.
+- **Web Worker:** `src/coverage/worker.js` loads the elevation tiles itself
+  and posts progress every 50 cells. Cancelling is cooperative (the worker
+  yields between batches).
+- **Drawing:** one pixel per cell on a canvas, shown as a Leaflet
+  `imageOverlay` with `image-rendering: pixelated`. That's much faster than
+  thousands of rectangles. The lat/lon grid is drawn on the Web-Mercator map
+  as an image; over ±30 km the resulting distortion is below 0.5%, far less
+  than a cell.
+- **Colours:** discrete green / yellow / red, with the same thresholds as the
+  verdict (≥ 10, 0–10, < 0 dB), semi-transparent.
+- Clicking a computed cell switches to the A–B view with A = transmitter and
+  B = the cell centre (receiver height from the coverage panel).
+
+## 9. Relay planner
+
+- **Search area:** an ellipse with foci A and B, where `|AR| + |RB| ≤
+  max(1.5·D, D + 6 km)`. A relay far off to the side only makes both hops
+  longer.
+- **High ground first:** the ellipse is sampled on a ~70 × 70 grid, the
+  points are sorted by elevation, and the ~150 highest are kept, at least 2.5
+  cells apart so they are not all on one summit.
+- **Score:** the full link analysis for both hops, then the **weaker hop's
+  margin** (a chain is as strong as its weakest link). Ties go to higher
+  ground. The top 3 sites at least `max(1 km, D/8)` apart are shown.
+- The relay uses the same radio settings as A and B, with its own antenna
+  height (default 5 m). Code: `src/relay/relay.js`; it runs in the same Web
+  Worker as the coverage map.
+- The relay panel appears when the direct link is marginal or fails.
+  Inspecting a hop temporarily replaces A/B in the view (the URL keeps the
+  original pair), and "Back to A–B" restores it.
+
+## 10. Languages (Hebrew / English)
+
+- All strings live in **one file**, `src/i18n/strings.js`, with a tiny
+  helper (`src/i18n/index.js`) and no library. HTML elements carry
+  `data-i18n` / `data-i18n-html` / `data-i18n-attr` keys; dynamic content
+  calls `t(key, params)`.
+- **Default** = saved choice, else the browser language (`he`/`iw` → Hebrew),
+  else English. The choice is saved in localStorage.
+- **RTL:** Hebrew sets `<html dir="rtl">`. The CSS grid mirrors the layout
+  (side panel moves left). The map, the charts and numeric inputs stay
+  left-to-right, and values with units use `unicode-bidi: plaintext` so
+  "7.49 km" isn't reordered.
+- A unit test checks that every key exists in both languages with the same
+  placeholders.
+- Example names are translated. Technical abbreviations (SF, dBm, EIRP, RSSI)
+  stay in Latin script, as is usual in Hebrew technical writing.
+
+## 11. Branches
+
+The default branch is `main`. When this work started, the remote had only
+the original feature branch, so `main` was created from its tip and work
+continued there.

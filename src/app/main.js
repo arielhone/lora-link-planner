@@ -618,6 +618,8 @@ $('#cov-run').addEventListener('click', async () => {
   try {
     const { grid, margins } = await job.promise;
     coverage = { key, grid, margins, summary: summarizeCoverage(margins) };
+    // on phones the button is below the map: bring the result into view
+    if (window.matchMedia('(max-width: 860px)').matches) $('.map-wrap').scrollIntoView({ behavior: 'smooth' });
     window.__planner.coverageDone = (window.__planner.coverageDone || 0) + 1;
   } catch (err) {
     $('#cov-status').textContent = err.message === 'cancelled' ? t('cov.cancelled') : t('result.error', { msg: err.message });

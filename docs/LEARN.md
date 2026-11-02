@@ -18,7 +18,10 @@ so you can read the formula as a program too.
 9. [The link budget: radio accounting](#9-the-link-budget-radio-accounting)
 10. [Time on air: how long a message occupies the channel](#10-time-on-air)
 11. [Where the terrain comes from](#11-where-the-terrain-comes-from)
-12. [What the model leaves out](#12-what-the-model-leaves-out)
+12. [Clutter loss: buildings, trees and you](#12-clutter-loss-buildings-trees-and-you)
+13. [Coverage maps: one transmitter, thousands of receivers](#13-coverage-maps-one-transmitter-thousands-of-receivers)
+14. [Relays: going over the hill instead of through it](#14-relays-going-over-the-hill-instead-of-through-it)
+15. [What the model leaves out](#15-what-the-model-leaves-out)
 
 ---
 
@@ -122,8 +125,8 @@ places where the ground enters the 60 % line. The "what if" helper calculates
 how high the antennas must be to clear it.
 
 → [`fresnelRadius()`](../src/physics/propagation.js#L75),
-[`pathGeometry()`](../src/physics/pathAnalysis.js#L47),
-[`requiredExtraHeight()`](../src/physics/pathAnalysis.js#L91)
+[`pathGeometry()`](../src/physics/pathAnalysis.js#L50),
+[`requiredExtraHeight()`](../src/physics/pathAnalysis.js#L94)
 
 ## 5. The Earth is round (and the air bends radio)
 
@@ -263,6 +266,7 @@ minimum balance.
 | − Transmit cable loss | −0 dB |
 | − Free-space path loss | −117.3 dB |
 | − Obstruction (diffraction) loss | −0 dB |
+| − Environment (clutter) loss | −0 dB (open) |
 | + Receive antenna gain | +0 dB |
 | − Receive cable loss | −0 dB |
 | **= Received power** | **−103.3 dBm** |
@@ -283,9 +287,9 @@ limits **EIRP** = power + antenna gain − cable loss, not just the radio's
 power.
 
 → [`eirp()`](../src/physics/linkBudget.js#L28),
-[`linkBudget()`](../src/physics/linkBudget.js#L64),
+[`linkBudget()`](../src/physics/linkBudget.js#L65),
 [`verdict()`](../src/physics/linkBudget.js#L42),
-[`analyzeLink()`](../src/physics/pathAnalysis.js#L119)
+[`analyzeLink()`](../src/physics/pathAnalysis.js#L125)
 
 ## 10. Time on air
 
@@ -328,17 +332,105 @@ height at each step. Between grid points it blends the four nearest heights
 [`pathPoints()`](../src/elevation/profile.js#L20),
 [`distance()`](../src/elevation/geo.js#L16) (haversine),
 [`interpolate()`](../src/elevation/geo.js#L27) (great circle),
-[`Dem.elevationAt()`](../src/elevation/dem.js#L46),
+[`Dem.elevationAt()`](../src/elevation/dem.js#L153),
 [`decodeTile()`](../src/elevation/dem.js#L21)
 
-## 12. What the model leaves out
+## 12. Clutter loss: buildings, trees and you
+
+The terrain model sees hills. It doesn't really see the things near the
+antennas: houses, walls, trees, parked cars, the person holding the device.
+Together these are called **clutter**, and they eat signal.
+
+Analogy: the terrain is the mountains between two villages; the clutter is
+the furniture in the room where you're shouting from. Even with no mountain
+in the way, shouting from inside a closed cupboard doesn't carry far.
+
+The planner models clutter as **one extra loss**, chosen by the type of
+place:
+
+| environment | extra loss | typical place |
+| ----------- | ---------- | ------------- |
+| open | 0 dB | hilltops, fields, desert, coast |
+| suburban | 10 dB | houses with gardens, small towns, light woodland |
+| urban | 20 dB | city streets, devices at street level between buildings |
+| custom | your number | e.g. from Field-mode calibration |
+
+20 dB means the signal is **100 times** weaker. These values come from
+international measurement-based models (ITU-R P.2108 and the classic
+Okumura–Hata model; see [DECISIONS.md](../DECISIONS.md#7-environment-clutter-loss)).
+They're averages, though, and your street may differ by ±10 dB. That's why
+**Field mode can calibrate it**: log a few real measurements and press
+"Compute best-fit extra loss". The math is just an average: if your
+measurements are on average 13 dB weaker than the open-terrain prediction,
+your environment costs about 13 dB.
+
+→ [`clutterLoss()`](../src/physics/clutter.js#L24),
+[`ENVIRONMENT_LOSS_DB`](../src/physics/clutter.js#L11),
+[`p2108TerrestrialClutterLoss()`](../src/physics/clutter.js#L56),
+[`bestFitExtraLoss()`](../src/field/records.js#L85)
+
+## 13. Coverage maps: one transmitter, thousands of receivers
+
+The A–B view answers "does *this* link work?". A **coverage map** answers
+"*where* can I hear this transmitter?".
+
+It's the same calculation, repeated: the planner lays a grid of squares over
+the area around the transmitter, about 80 × 80 or 160 × 160 of them. For each
+square it pretends a receiver sits in the middle, cuts the terrain profile
+from the transmitter to that point, and runs the full link budget. Then it
+paints the square green (works), yellow (marginal) or red (fails).
+
+Think of a lighthouse at night: the coverage map is the patch of sea its
+light reaches. Hills throw **radio shadows** behind them, just like shadows
+behind a rock. That's why coverage maps are never neat circles.
+
+Thousands of link calculations take a few seconds, so they run in a **Web
+Worker**, a helper thread in the browser. The page stays responsive and
+shows a progress bar. Click any square to open its path in the normal A–B
+view and see *why* it's that colour.
+
+→ [`coverageGrid()`](../src/coverage/grid.js#L39),
+[`autoCellSize()`](../src/coverage/grid.js#L23),
+[`classifyMargin()`](../src/coverage/grid.js#L90),
+[`computeCoverage()`](../src/coverage/compute.js#L25)
+
+## 14. Relays: going over the hill instead of through it
+
+When a hill blocks the path, you can fight it (more power, higher masts, a
+slower SF), or you can **go around it**: put a third radio, a **relay**, on
+high ground that both ends can see. The relay hears A and repeats the message
+to B.
+
+Why this helps so much: diffraction loss over a big hill can be 40 dB or
+more, which is 10 000 times weaker. Two clear hops of half the distance each
+cost only a little extra free-space loss. A relay turns one impossible link
+into two easy ones.
+
+How the planner searches:
+
+1. It only looks inside an oval (an ellipse) around A and B. A relay far off
+   to the side would make both hops much longer.
+2. It prefers **high ground**: it samples the oval and keeps the highest
+   points.
+3. For each candidate it computes **both hops** (A → relay, relay → B).
+4. It ranks candidates by their **weaker hop**, because a chain is only as
+   strong as its weakest link. A relay with hops of +30 dB and −2 dB is
+   worse than one with +12 and +11.
+
+The top three sites are shown on the map with both margins, and you can
+inspect each hop's profile.
+
+→ [`relayCandidates()`](../src/relay/relay.js#L28),
+[`findRelays()`](../src/relay/relay.js#L71)
+
+## 15. What the model leaves out
 
 A planner is a map, not the territory. Things this one does **not** model:
 
 - **Buildings and trees** as separate objects. The elevation data includes
-  some of them (it is a surface model), but at 60 m resolution a single
-  building is mostly smoothed away. In a city, expect several to 20+ dB worse
-  than predicted.
+  some of them (it is a surface model), and the environment setting adds an
+  average clutter loss (section 12), but a single building right next to your
+  antenna can still make reality 10–20 dB worse than predicted.
 - **Reflections** from the ground or water, which can add or cancel
   (multipath fading).
 - **Your body, the car, the case** around a handheld device, which can easily
