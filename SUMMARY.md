@@ -8,7 +8,7 @@
 | 2. Elevation pipeline | ✅ `build_dem.py` downloads Copernicus GLO-30 from AWS Open Data, filters, resamples to 2″ (~60 m), writes 114 gzip+delta tiles (13 MB); JS reader with bilinear interpolation; 30 m great-circle profile sampler | `scripts/`, `public/dem/`, `src/elevation/` |
 | 3. Planner app | ✅ Leaflet map, draggable A/B, antenna heights, settings panel, SVG profile (terrain, LOS, Fresnel ellipse, 60% line, red/orange obstruction, labelled diffraction edges, hover read-out), result card with verdict, what-if (SF table + required heights with one-click apply), URL-hash sharing, examples, mobile layout | `index.html`, `src/app/` |
 | 4. Field mode | ✅ Log tests, predicted vs measured table, prediction-error scatter chart with bias/RMS stats, CSV import/export, localStorage | `field.html`, `src/field/` |
-| 5. Firmware | ✅ written, ⚠️ not compiled locally (see below). Sender/receiver for the Heltec WiFi LoRa 32 V3 with RadioLib, OLED status, PRG-button mode switch, CSV over serial in the field-mode format | `firmware/` |
+| 5. Firmware | ✅ compiles in CI (PlatformIO, both environments), ⚠️ not tested on hardware. Sender/receiver for the Heltec WiFi LoRa 32 V3 with RadioLib, OLED status, PRG-button mode switch, CSV over serial in the field-mode format | `firmware/` |
 | 6. Learning docs | ✅ 12 (now 15) sections from zero, each linked to the implementing function | `docs/LEARN.md` |
 | 7. Polish | ✅ README, MIT licence, CI (tests, build, headless e2e, firmware compile), Pages deployment, DECISIONS.md | `.github/workflows/` |
 
@@ -41,14 +41,14 @@ unit tests. A 5,000-cell coverage map takes ~1 s in Node.
 
 ## What's missing / not verified
 
-- **Firmware was not compiled in this environment.** The PlatformIO registry
-  and GitHub were blocked by the sandbox network policy. The code was
-  type-checked with `g++ -fsyntax-only` against stub headers that mirror the
-  RadioLib 7 / ThingPulse SSD1306 APIs. The real compile runs in the
-  `firmware` job of `ci.yml`. It has not been tested on hardware.
-- **CI status was not observed from here.** GitHub's API for workflow runs
-  was not reachable, so check the Actions tab after the push. The e2e job now
-  also exercises the coverage map, relay planner, calibration and Hebrew UI.
+- **Firmware compiles in GitHub Actions**: the `firmware` CI job built
+  sender and receiver successfully. It could not be compiled inside the
+  development sandbox, where the PlatformIO registry was blocked, and it has
+  **not been tested on hardware**.
+- **CI:** the first-round run on GitHub passed all jobs (unit tests, build,
+  headless e2e, firmware). The run for this round was still in progress when
+  this file was written; check the Actions tab. The e2e job now also
+  exercises the coverage map, relay planner, calibration and Hebrew UI.
 - **No GIF** in the README, only static screenshots. The map background in
   the screenshots is blank because OpenStreetMap tiles were blocked in the
   sandbox.
