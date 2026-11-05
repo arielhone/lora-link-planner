@@ -8,7 +8,7 @@ loss, and gives you a verdict (**works / marginal / fails**) with the link
 margin in dB. Every formula is explained in plain language in
 [docs/LEARN.md](docs/LEARN.md), so it works as a teaching tool too.
 
-**Live demo:** https://arielhone.github.io/lora-link-planner/ · [עברית](https://arielhone.github.io/lora-link-planner/) (switch with the button at the top)
+**Live demo:** https://arielhuna.github.io/lora-link-planner/ · [עברית](https://arielhuna.github.io/lora-link-planner/) (switch with the button at the top)
 
 ![Planner: a 17 km coastal link with the terrain profile and a marginal verdict](docs/images/planner-marginal.png)
 

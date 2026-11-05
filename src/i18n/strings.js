@@ -124,7 +124,7 @@ export const STRINGS = {
     'set.env.urban': 'Urban (+20 dB)',
     'set.env.custom': 'Custom / calibrated',
     'set.clutter': 'Extra loss (dB)',
-    'set.israel_html': 'Israel: 917–920 MHz, max 14 dBm EIRP (AS923-4). <a href="https://github.com/arielhone/lora-link-planner/blob/main/DECISIONS.md#1-frequency-band-and-power-for-israel" target="_blank" rel="noopener">Source</a>',
+    'set.israel_html': 'Israel: 917–920 MHz, max 14 dBm EIRP (AS923-4). <a href="https://github.com/arielhuna/lora-link-planner/blob/main/DECISIONS.md#1-frequency-band-and-power-for-israel" target="_blank" rel="noopener">Source</a>',
     'compliance.freq': '{f} MHz is outside the 917–920 MHz band allowed for LoRa in Israel.',
     'compliance.eirp': 'EIRP {eirp} dBm exceeds the 14 dBm limit (TX power + antenna gain − cable loss).',
 
@@ -377,7 +377,7 @@ export const STRINGS = {
     'set.env.urban': 'עירונית (+20 dB)',
     'set.env.custom': 'מותאם / מכויל',
     'set.clutter': 'הנחתה נוספת (dB)',
-    'set.israel_html': 'ישראל: 917–920 MHz, עד 14 dBm EIRP ‏(AS923-4). <a href="https://github.com/arielhone/lora-link-planner/blob/main/DECISIONS.md#1-frequency-band-and-power-for-israel" target="_blank" rel="noopener">מקור</a>',
+    'set.israel_html': 'ישראל: 917–920 MHz, עד 14 dBm EIRP ‏(AS923-4). <a href="https://github.com/arielhuna/lora-link-planner/blob/main/DECISIONS.md#1-frequency-band-and-power-for-israel" target="_blank" rel="noopener">מקור</a>',
     'compliance.freq': '{f} MHz מחוץ לתחום 917–920 MHz המותר ל-LoRa בישראל.',
     'compliance.eirp': 'EIRP של {eirp} dBm חורג מהמגבלה של 14 dBm (הספק שידור + הגבר אנטנה − הפסדי כבל).',
 
